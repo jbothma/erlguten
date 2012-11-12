@@ -39,7 +39,9 @@
 
 -export([open/1, close/1, tables/1,
 	 find_xref_pointer/1, find_trailer_pointer/1, get_xref/2,
-	 get_trailer/2, read_obj/2, get_tables/1, get_object/3]).
+	 get_trailer/2, read_obj/2, get_tables/1, get_object/3,
+         get_page_count/1
+        ]).
 
 %% exports
 %% open(File) -> {ok, Pdf} | error
@@ -62,7 +64,7 @@ batch([unpack,A]) ->
     unpack(atom_to_list(A)),
     erlang:halt();
 batch(_A) ->
-    io:format("Usage pack In File Out | Unpack Pdf~n",[]),
+    %%io:format("Usage pack In File Out | Unpack Pdf~n",[]),
     erlang:halt().
 
 test_pack() ->
@@ -123,7 +125,7 @@ test_unpack() -> unpack("tmp.pdf").
 tables(File) ->
     Pdf = open(File),
     {XrefPtr, Xref, Trailer} = T = get_tables(Pdf),
-    io:format("Tables=~p~n",[T]),
+    %%io:format("Tables=~p~n",[T]),
     Blocks = lists:reverse(
 	       lists:map(fun(I) -> get_xref_entry(I, Xref, Pdf) end, Xref)),
     %% io:format("Blocks=~p~n",[Blocks]),
@@ -139,7 +141,7 @@ debug(In) ->
 debug(In, Out) ->
     Tables = tables(In),
     {ok, O} = file:open(Out, [write]),
-    io:format(O, "~p~n",[Tables]),
+    %%io:format(O, "~p~n",[Tables]),
     file:close(O).
 
 open(File) ->
@@ -159,10 +161,10 @@ get_tables(Pdf) ->
     Trailer    = get_trailer(Pdf, TrailerPtr),
     {XrefPtr, Xref, Trailer}.
 
-get_xref_entry({Block, n, Pos, _G}, Xref, Pdf) ->
-    io:format("getting block ~p at ~p~n", [Block, Pos]),
+get_xref_entry({_Block, n, Pos, _G}, Xref, Pdf) ->
+    %%io:format("getting block ~p at ~p~n", [Block, Pos]),
     O = read_object(Pdf, Pos, Xref),
-    io:format("Block=~p~n",[O]),
+    %%io:format("Block=~p~n",[O]),
     O;
 get_xref_entry(_X, _, _) ->
     %io:format("Here X=~p~n",[X]),
@@ -173,6 +175,15 @@ get_xref_entry(_X, _, _) ->
 get_object(Pdf, {ptr,I,J}, Xref) ->
     P = find_obj_ptr(I, J, Xref),
     get_xref_entry(P, Xref, Pdf).
+
+get_page_count(Pdf) ->
+    {_XrefPtr, Xref, Trailer} = get_tables(Pdf),
+    RootPtr = from_trailer(Trailer, "Root"),
+    CatalogObj = get_object(Pdf, RootPtr, Xref),
+    RootPageTreeNodePtr = from_obj(CatalogObj, "Pages"),
+    RootPageTreeNode = get_object(Pdf, RootPageTreeNodePtr, Xref),
+    _Count = from_obj(RootPageTreeNode, "Count").
+
 
 find_obj_ptr(I, J, [P={I,n,_,J}|_]) -> P;
 find_obj_ptr(I, J, [_|T])           -> find_obj_ptr(I, J, T);
@@ -190,7 +201,7 @@ read_object(F, Pos, Xref) ->
 		    case read_obj(Str2, Pos2, F) of
 			{obj, Str3, Pos3} ->
 			    {Obj, Str4, Pos4} = read_obj(Str3, Pos3, F),
-			    io:format("Read: ~p ~p ~p~n",[I,J,Obj]),
+			    %%io:format("Read: ~p ~p ~p~n",[I,J,Obj]),
 			    %% io:format("SSSS=~p~n",[Str4]),
 			    read_after_object(I, J, Obj, F, Pos4, Str4, Xref);
 			_Other ->
@@ -208,7 +219,7 @@ read_after_object(I, J, Obj, F, Pos, _Str, Xref) ->
 	{endobj, _, _} ->
 	    {{obj,I,J},Obj};
 	{stream, _, Pos1}->
-	    io:format("Found a stream~n"),
+	    %%io:format("Found a stream~n"),
 	    ensure(F, Pos1-6,"stream"),
 	    %% Find the Length indictaor in the
 	    %% Obj
@@ -223,7 +234,7 @@ read_after_object(I, J, Obj, F, Pos, _Str, Xref) ->
 			  Other ->
 			      Other
 		      end,
-	    io:format("Length1=~p ~n",[Length1]),
+	    %%io:format("Length1=~p ~n",[Length1]),
 	    %% Read the stream into a binary Bin
 	    {ok, Bin} = file:pread(F, Pos1+1, Length1),
 	    File = "stream_" ++ i2s(I)++"_"++i2s(J) ++ "_" ++ i2s(Length1),
@@ -302,7 +313,7 @@ get_xref_blocks(F, Pos, L) ->
 	_ ->
 	    case erl_scan:string(Line) of
 		{ok, [{integer,_,Start},{integer,_,N}], _} ->
-		    io:format("Start block=~p Number=~p~n",[Start,N]),
+		    %%io:format("Start block=~p Number=~p~n",[Start,N]),
 		    {L1, Pos1} = get_blocks(F, Pos+length(Line)+1,Start,N,L),
 		    get_xref_blocks(F, Pos1, L1);
 		_ ->
@@ -691,9 +702,12 @@ write_file(File, Bin) ->
 	true ->
 	    write_file(File ++ ".tmp", Bin);
 	false ->
-	    io:format("Writing:~p~n",[File]),
+	    %%io:format("Writing:~p~n",[File]),
 	    file:write_file(File, [Bin])
     end.
+
+from_obj({{obj, _, _}, {dict, Dict}}, Key) ->
+    from_dict(Key, Dict).
 
 from_trailer({trailer, L}, Key) ->
     from_dict(Key, L).
