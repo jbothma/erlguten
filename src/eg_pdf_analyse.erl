@@ -37,7 +37,7 @@
 
 -export([test_pack/0, test_unpack/0, debug/1, debug/2]).
 
--export([open/1, close/1, tables/1,
+-export([open/1, open/2, close/1, tables/1,
 	 find_xref_pointer/1, find_trailer_pointer/1, get_xref/2,
 	 get_trailer/2, read_obj/2, get_tables/1, get_object/3,
          get_page_count/1
@@ -125,7 +125,7 @@ test_unpack() -> unpack("tmp.pdf").
 tables(File) ->
     Pdf = open(File),
     {XrefPtr, Xref, Trailer} = T = get_tables(Pdf),
-    %%io:format("Tables=~p~n",[T]),
+    io:format("Tables=~p~n",[T]),
     Blocks = lists:reverse(
 	       lists:map(fun(I) -> get_xref_entry(I, Xref, Pdf) end, Xref)),
     %% io:format("Blocks=~p~n",[Blocks]),
@@ -141,11 +141,24 @@ debug(In) ->
 debug(In, Out) ->
     Tables = tables(In),
     {ok, O} = file:open(Out, [write]),
-    %%io:format(O, "~p~n",[Tables]),
+    io:format(O, "~p~n",[Tables]),
     file:close(O).
 
 open(File) ->
-    {ok, Pdf} = file:open(File, [binary, raw, read]),
+    open(File, [{file_opts, [binary, raw, read]}]).
+
+open(File, Opts) ->
+    RAMOpt = lists:member(ram, Opts),
+    FileOptsGiven = lists:keyfind(file_opts, 1, Opts),
+    FileOpts = if
+                   RAMOpt ->
+                       %% TODO: ram option is undocumented.
+                       [ram, binary];
+                   FileOptsGiven =/= undefined ->
+                       {file_opts, FileOpts1} = FileOptsGiven,
+                       FileOpts1
+               end,
+    {ok, Pdf} = file:open(File, FileOpts),
     Pdf.
 
 close(Pdf) ->
@@ -276,7 +289,6 @@ find_xref_pointer(F) ->
     %% io:format("Find xref_pointer:~p~n",[F]),
     {ok, Pos} = file:position(F, {eof,-50}),
     %% io:format("Pos=:~p~n",[Pos]),
-    {ok, Pos} = file:position(F, {eof,-50}),
     Data = read_str(F, Pos, 50),
     S = start_xref1(Data),
     %% io:format("S=~p~n",[S]),
