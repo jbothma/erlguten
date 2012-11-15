@@ -20,6 +20,22 @@ page_count_nested_test() ->
 %% Eat your own dogfood.
 page_count_dogfood_test() ->
     %% Make a PDF for _analyse_ to play with
+    save_basic_pdf("dogfood.pdf"),
+
+    %% Get pagecount of our own PDF
+    PDF = eg_pdf_analyse:open("dogfood.pdf"),
+    ?assertEqual(2, eg_pdf_analyse:get_page_count(PDF)),
+    eg_pdf_analyse:close(PDF).
+
+page_count_ram_mode_test() ->
+    save_basic_pdf("dogfood.pdf"),
+    {ok, Data} = file:read_file("dogfood.pdf"),
+    PDF = eg_pdf_analyse:open(Data, [ram]),
+    ?assertEqual(2, eg_pdf_analyse:get_page_count(PDF)),
+    eg_pdf_analyse:close(PDF).
+
+
+save_basic_pdf(Filename) ->
     EgPDF = eg_pdf:new(),
     eg_pdf:set_pagesize(EgPDF,letter),
     eg_pdf:set_page(EgPDF,1),
@@ -36,10 +52,5 @@ page_count_dogfood_test() ->
     eg_pdf:end_text(EgPDF),
     eg_pdf:save_state(EgPDF),
     {Serialised, _PageNo} = eg_pdf:export(EgPDF),
-    ok = file:write_file("dogfood.pdf",[Serialised]),
-    eg_pdf:delete(EgPDF),
-
-    %% Get pagecount of our own PDF
-    PDF = eg_pdf_analyse:open("dogfood.pdf"),
-    ?assertEqual(2, eg_pdf_analyse:get_page_count(PDF)),
-    eg_pdf_analyse:close(PDF).
+    ok = file:write_file(Filename, [Serialised]),
+    eg_pdf:delete(EgPDF).
